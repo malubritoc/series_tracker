@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'screens/root_shell.dart';
+import 'screens/auth_gate.dart';
 
 void main() {
   runApp(const SeriesTrackerApp());
@@ -29,7 +29,7 @@ class SeriesTrackerApp extends StatelessWidget {
           elevation: 0,
         ),
       ),
-      home: const RootShell(),
+      home: const AuthGate(),
     );
   }
 }

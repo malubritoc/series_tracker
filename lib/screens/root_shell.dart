@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'favorites_screen.dart';
 import 'home_screen.dart';
+import 'profile_screen.dart';
 
 class RootShell extends StatefulWidget {
   const RootShell({super.key});
@@ -18,6 +19,7 @@ class _RootShellState extends State<RootShell> {
   late final List<Widget> _screens = [
     const HomeScreen(),
     FavoritesScreen(key: _favoritesKey),
+    const ProfileScreen(),
   ];
 
   void _onTabSelected(int i) {
@@ -47,6 +49,11 @@ class _RootShellState extends State<RootShell> {
             icon: Icon(Icons.favorite_border),
             selectedIcon: Icon(Icons.favorite),
             label: 'Favoritos',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'Perfil',
           ),
         ],
       ),
