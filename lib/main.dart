@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'screens/home_screen.dart';
+import 'screens/root_shell.dart';
 
 void main() {
   runApp(const SeriesTrackerApp());
@@ -29,7 +29,7 @@ class SeriesTrackerApp extends StatelessWidget {
           elevation: 0,
         ),
       ),
-      home: const HomeScreen(),
+      home: const RootShell(),
     );
   }
 }

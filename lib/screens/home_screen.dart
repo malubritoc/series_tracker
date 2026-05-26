@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/series.dart';
 import '../services/tmdb_service.dart';
+import 'series_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,6 +19,18 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _popularFuture = _service.fetchPopular();
+  }
+
+  void _openDetail(Series series) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SeriesDetailScreen(
+          seriesId: series.id,
+          initialName: series.name,
+        ),
+      ),
+    );
   }
 
   @override
@@ -51,7 +64,10 @@ class _HomeScreenState extends State<HomeScreen> {
               mainAxisSpacing: 12,
             ),
             itemCount: series.length,
-            itemBuilder: (context, index) => _PosterTile(series: series[index]),
+            itemBuilder: (context, index) => _PosterTile(
+              series: series[index],
+              onTap: () => _openDetail(series[index]),
+            ),
           );
         },
       ),
@@ -61,53 +77,58 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class _PosterTile extends StatelessWidget {
   final Series series;
-  const _PosterTile({required this.series});
+  final VoidCallback onTap;
+  const _PosterTile({required this.series, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (series.posterUrl != null)
-            Image.network(
-              series.posterUrl!,
-              fit: BoxFit.cover,
-              loadingBuilder: (context, child, progress) {
-                if (progress == null) return child;
-                return Container(
-                  color: Colors.white10,
-                  child: const Center(child: CircularProgressIndicator()),
-                );
-              },
-              errorBuilder: (_, __, ___) => _PosterFallback(name: series.name),
-            )
-          else
-            _PosterFallback(name: series.name),
-          Positioned(
-            left: 6,
-            top: 6,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.star, size: 12, color: Color(0xFFFF8000)),
-                  const SizedBox(width: 2),
-                  Text(
-                    series.voteAverage.toStringAsFixed(1),
-                    style: const TextStyle(fontSize: 11, color: Colors.white),
-                  ),
-                ],
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (series.posterUrl != null)
+              Image.network(
+                series.posterUrl!,
+                fit: BoxFit.cover,
+                loadingBuilder: (context, child, progress) {
+                  if (progress == null) return child;
+                  return Container(
+                    color: Colors.white10,
+                    child: const Center(child: CircularProgressIndicator()),
+                  );
+                },
+                errorBuilder: (_, __, ___) =>
+                    _PosterFallback(name: series.name),
+              )
+            else
+              _PosterFallback(name: series.name),
+            Positioned(
+              left: 6,
+              top: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.star, size: 12, color: Color(0xFFFF8000)),
+                    const SizedBox(width: 2),
+                    Text(
+                      series.voteAverage.toStringAsFixed(1),
+                      style: const TextStyle(fontSize: 11, color: Colors.white),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
