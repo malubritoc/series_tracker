@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'favorites_screen.dart';
 import 'home_screen.dart';
 import 'profile_screen.dart';
+import 'watched_screen.dart';
 
 class RootShell extends StatefulWidget {
   const RootShell({super.key});
@@ -15,10 +16,13 @@ class _RootShellState extends State<RootShell> {
   int _index = 0;
   final GlobalKey<FavoritesScreenState> _favoritesKey =
       GlobalKey<FavoritesScreenState>();
+  final GlobalKey<WatchedScreenState> _watchedKey =
+      GlobalKey<WatchedScreenState>();
 
   late final List<Widget> _screens = [
     const HomeScreen(),
     FavoritesScreen(key: _favoritesKey),
+    WatchedScreen(key: _watchedKey),
     const ProfileScreen(),
   ];
 
@@ -26,6 +30,8 @@ class _RootShellState extends State<RootShell> {
     setState(() => _index = i);
     if (i == 1) {
       _favoritesKey.currentState?.reload();
+    } else if (i == 2) {
+      _watchedKey.currentState?.reload();
     }
   }
 
@@ -49,6 +55,11 @@ class _RootShellState extends State<RootShell> {
             icon: Icon(Icons.favorite_border),
             selectedIcon: Icon(Icons.favorite),
             label: 'Favoritos',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.check_circle_outline),
+            selectedIcon: Icon(Icons.check_circle),
+            label: 'Assistidos',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),

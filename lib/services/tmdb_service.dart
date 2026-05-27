@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../config/secrets.dart';
+import '../models/episode.dart';
 import '../models/series.dart';
 
 class TmdbService {
@@ -34,6 +35,19 @@ class TmdbService {
     _ensureOk(response);
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     return Series.fromJson(data);
+  }
+
+  Future<List<Episode>> fetchSeason(int seriesId, int seasonNumber) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/tv/$seriesId/season/$seasonNumber?language=pt-BR'),
+      headers: _headers,
+    );
+    _ensureOk(response);
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final episodes = data['episodes'] as List<dynamic>;
+    return episodes
+        .map((e) => Episode.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   void _ensureOk(http.Response response) {

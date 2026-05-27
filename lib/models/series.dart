@@ -1,3 +1,5 @@
+import 'season.dart';
+
 class Series {
   final int id;
   final String name;
@@ -11,6 +13,7 @@ class Series {
   final int? numberOfEpisodes;
   final String? status;
   final String? tagline;
+  final List<Season>? seasons;
 
   const Series({
     required this.id,
@@ -24,10 +27,12 @@ class Series {
     this.numberOfEpisodes,
     this.status,
     this.tagline,
+    this.seasons,
   });
 
   factory Series.fromJson(Map<String, dynamic> json) {
     final rawGenres = json['genres'] as List<dynamic>?;
+    final rawSeasons = json['seasons'] as List<dynamic>?;
     return Series(
       id: json['id'] as int,
       name: (json['name'] as String?) ?? '',
@@ -42,6 +47,10 @@ class Series {
       numberOfEpisodes: json['number_of_episodes'] as int?,
       status: json['status'] as String?,
       tagline: json['tagline'] as String?,
+      seasons: rawSeasons
+          ?.map((s) => Season.fromJson(s as Map<String, dynamic>))
+          .where((s) => s.seasonNumber > 0)
+          .toList(),
     );
   }
 

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../models/episode.dart';
+import '../models/season.dart';
 import '../models/series.dart';
 import '../services/favorites_service.dart';
 import '../services/tmdb_service.dart';
+import '../services/watched_service.dart';
 
 class SeriesDetailScreen extends StatefulWidget {
   final int seriesId;
@@ -21,9 +24,13 @@ class SeriesDetailScreen extends StatefulWidget {
 class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
   final TmdbService _tmdb = TmdbService();
   final FavoritesService _favorites = FavoritesService();
+  final WatchedService _watched = WatchedService();
 
   late Future<Series> _detailFuture;
   bool _isFavorite = false;
+  Set<String> _watchedEpisodes = {};
+
+  final Map<int, Future<List<Episode>>> _episodesBySeason = {};
 
   @override
   void initState() {
@@ -32,11 +39,28 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
     _favorites.isFavorite(widget.seriesId).then((value) {
       if (mounted) setState(() => _isFavorite = value);
     });
+    _watched.getWatchedEpisodes(widget.seriesId).then((value) {
+      if (mounted) setState(() => _watchedEpisodes = value);
+    });
   }
 
   Future<void> _toggleFavorite() async {
     final nowFavorite = await _favorites.toggle(widget.seriesId);
     if (mounted) setState(() => _isFavorite = nowFavorite);
+  }
+
+  Future<void> _toggleEpisode(int season, int episode) async {
+    await _watched.toggleEpisode(widget.seriesId, season, episode);
+    final updated = await _watched.getWatchedEpisodes(widget.seriesId);
+    if (mounted) setState(() => _watchedEpisodes = updated);
+  }
+
+  void _ensureSeasonLoaded(int seasonNumber) {
+    if (_episodesBySeason.containsKey(seasonNumber)) return;
+    setState(() {
+      _episodesBySeason[seasonNumber] =
+          _tmdb.fetchSeason(widget.seriesId, seasonNumber);
+    });
   }
 
   @override
@@ -71,8 +95,13 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
               ),
             );
           }
-          final series = snapshot.data!;
-          return _DetailBody(series: series);
+          return _DetailBody(
+            series: snapshot.data!,
+            watchedEpisodes: _watchedEpisodes,
+            episodesBySeason: _episodesBySeason,
+            onExpandSeason: _ensureSeasonLoaded,
+            onToggleEpisode: _toggleEpisode,
+          );
         },
       ),
     );
@@ -81,10 +110,22 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
 
 class _DetailBody extends StatelessWidget {
   final Series series;
-  const _DetailBody({required this.series});
+  final Set<String> watchedEpisodes;
+  final Map<int, Future<List<Episode>>> episodesBySeason;
+  final void Function(int seasonNumber) onExpandSeason;
+  final Future<void> Function(int season, int episode) onToggleEpisode;
+
+  const _DetailBody({
+    required this.series,
+    required this.watchedEpisodes,
+    required this.episodesBySeason,
+    required this.onExpandSeason,
+    required this.onToggleEpisode,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final seasons = series.seasons ?? const <Season>[];
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -163,59 +204,199 @@ class _DetailBody extends StatelessWidget {
                       : series.overview,
                   style: const TextStyle(height: 1.4),
                 ),
-                const SizedBox(height: 20),
-                _MetaRow(
-                  items: [
-                    if (series.numberOfSeasons != null)
-                      ('Temporadas', series.numberOfSeasons.toString()),
-                    if (series.numberOfEpisodes != null)
-                      ('Episódios', series.numberOfEpisodes.toString()),
-                    if (series.status != null && series.status!.isNotEmpty)
-                      ('Status', series.status!),
-                  ],
-                ),
               ],
             ),
           ),
+          if (seasons.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                'Temporadas',
+                style:
+                    TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...seasons.map(
+              (season) => _SeasonTile(
+                season: season,
+                episodesFuture: episodesBySeason[season.seasonNumber],
+                watchedEpisodes: watchedEpisodes,
+                onExpand: () => onExpandSeason(season.seasonNumber),
+                onToggleEpisode: onToggleEpisode,
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
         ],
       ),
     );
   }
 }
 
-class _MetaRow extends StatelessWidget {
-  final List<(String, String)> items;
-  const _MetaRow({required this.items});
+class _SeasonTile extends StatelessWidget {
+  final Season season;
+  final Future<List<Episode>>? episodesFuture;
+  final Set<String> watchedEpisodes;
+  final VoidCallback onExpand;
+  final Future<void> Function(int season, int episode) onToggleEpisode;
+
+  const _SeasonTile({
+    required this.season,
+    required this.episodesFuture,
+    required this.watchedEpisodes,
+    required this.onExpand,
+    required this.onToggleEpisode,
+  });
 
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) return const SizedBox.shrink();
-    return Row(
-      children: items
-          .map(
-            (item) => Expanded(
+    final watchedInSeason = watchedEpisodes
+        .where((k) => k.startsWith('${season.seasonNumber}.'))
+        .length;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Card(
+        color: const Color(0xFF1B2228),
+        margin: EdgeInsets.zero,
+        child: ExpansionTile(
+          key: PageStorageKey('season_${season.seasonNumber}'),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+          title: Text(
+            season.name.isEmpty
+                ? 'Temporada ${season.seasonNumber}'
+                : season.name,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          subtitle: Text(
+            '$watchedInSeason / ${season.episodeCount} assistidos',
+            style: const TextStyle(color: Colors.white60, fontSize: 12),
+          ),
+          onExpansionChanged: (expanded) {
+            if (expanded) onExpand();
+          },
+          children: [_buildContent()],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent() {
+    if (episodesFuture == null) {
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    return FutureBuilder<List<Episode>>(
+      future: episodesFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError) {
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'Erro ao carregar episódios.',
+              style: const TextStyle(color: Colors.redAccent),
+            ),
+          );
+        }
+        final episodes = snapshot.data ?? const [];
+        return Column(
+          children: episodes.map((ep) {
+            final watched = watchedEpisodes.contains(ep.watchedKey);
+            return _EpisodeRow(
+              episode: ep,
+              watched: watched,
+              onToggle: () => onToggleEpisode(ep.seasonNumber, ep.episodeNumber),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+}
+
+class _EpisodeRow extends StatelessWidget {
+  final Episode episode;
+  final bool watched;
+  final VoidCallback onToggle;
+
+  const _EpisodeRow({
+    required this.episode,
+    required this.watched,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onToggle,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: SizedBox(
+                width: 80,
+                height: 50,
+                child: episode.stillUrl != null
+                    ? Image.network(
+                        episode.stillUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            Container(color: Colors.white10),
+                      )
+                    : Container(
+                        color: Colors.white10,
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          Icons.image_not_supported,
+                          size: 20,
+                          color: Colors.white38,
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    item.$1,
+                    episode.code,
                     style: const TextStyle(
-                      color: Colors.white60,
+                      color: Color(0xFFFF8000),
+                      fontWeight: FontWeight.w700,
                       fontSize: 12,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
-                    item.$2,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    episode.name.isEmpty ? 'Sem título' : episode.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13),
                   ),
                 ],
               ),
             ),
-          )
-          .toList(),
+            Checkbox(
+              value: watched,
+              onChanged: (_) => onToggle(),
+              activeColor: const Color(0xFFFF8000),
+              checkColor: Colors.black,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
