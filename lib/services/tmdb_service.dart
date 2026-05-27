@@ -13,9 +13,9 @@ class TmdbService {
         'Accept': 'application/json',
       };
 
-  Future<List<Series>> fetchPopular() async {
+  Future<List<Series>> fetchPopular({int page = 1}) async {
     final response = await http.get(
-      Uri.parse('$_baseUrl/tv/popular?language=pt-BR&page=1'),
+      Uri.parse('$_baseUrl/tv/popular?language=pt-BR&page=$page'),
       headers: _headers,
     );
     _ensureOk(response);

@@ -13,12 +13,41 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TmdbService _service = TmdbService();
-  late Future<List<Series>> _popularFuture;
+  final List<Series> _series = [];
+
+  int _page = 0;
+  bool _isLoading = false;
+  bool _hasError = false;
+  bool _hasMore = true;
 
   @override
   void initState() {
     super.initState();
-    _popularFuture = _service.fetchPopular();
+    _loadMore();
+  }
+
+  Future<void> _loadMore() async {
+    if (_isLoading || !_hasMore) return;
+    setState(() {
+      _isLoading = true;
+      _hasError = false;
+    });
+    try {
+      final next = await _service.fetchPopular(page: _page + 1);
+      if (!mounted) return;
+      setState(() {
+        _series.addAll(next);
+        _page++;
+        _isLoading = false;
+        _hasMore = next.length >= 20;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _hasError = true;
+      });
+    }
   }
 
   void _openDetail(Series series) {
@@ -37,39 +66,115 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Populares')),
-      body: FutureBuilder<List<Series>>(
-        future: _popularFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  'Erro ao carregar séries:\n${snapshot.error}',
-                  textAlign: TextAlign.center,
-                ),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_series.isEmpty && _isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_series.isEmpty && _hasError) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Erro ao carregar séries.'),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: _loadMore,
+                child: const Text('Tentar novamente'),
               ),
-            );
-          }
-          final series = snapshot.data ?? const [];
-          return GridView.builder(
-            padding: const EdgeInsets.all(12),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.all(12),
+          sliver: SliverGrid.builder(
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 3,
               childAspectRatio: 2 / 3,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
             ),
-            itemCount: series.length,
+            itemCount: _series.length,
             itemBuilder: (context, index) => _PosterTile(
-              series: series[index],
-              onTap: () => _openDetail(series[index]),
+              series: _series[index],
+              onTap: () => _openDetail(_series[index]),
             ),
-          );
-        },
+          ),
+        ),
+        SliverToBoxAdapter(child: _buildFooter()),
+      ],
+    );
+  }
+
+  Widget _buildFooter() {
+    if (!_hasMore) {
+      return const Padding(
+        padding: EdgeInsets.all(24),
+        child: Center(
+          child: Text(
+            'Você chegou ao fim.',
+            style: TextStyle(color: Colors.white60),
+          ),
+        ),
+      );
+    }
+    if (_isLoading) {
+      return const Padding(
+        padding: EdgeInsets.all(24),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_hasError) {
+      return Padding(
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: Column(
+            children: [
+              const Text(
+                'Erro ao carregar mais.',
+                style: TextStyle(color: Colors.redAccent),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: _loadMore,
+                child: const Text('Tentar novamente'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: SizedBox(
+          height: 44,
+          child: ElevatedButton(
+            onPressed: _loadMore,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF8000),
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+            ),
+            child: const Text(
+              'Ver mais',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ),
       ),
     );
   }
